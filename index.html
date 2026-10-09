@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Case Nature Finder</title>
+<style>
+:root{
+  --bg:#EEF1F4; --panel:#FFFFFF; --ink:#16202A; --muted:#5C6B7A; --line:#D5DBE2;
+  --accent:#0B5C6B; --mark:#FFE27A; --markink:#3A2D00; --focus:#0B5C6B;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#10161C; --panel:#18212A; --ink:#E7EDF2; --muted:#93A3B3; --line:#2B3846;
+         --accent:#58C1D2; --mark:#6B5A12; --markink:#FFF3C2; --focus:#58C1D2; }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--bg);padding:14px 18px 12px;border-bottom:1px solid var(--line)}
+.top{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:10px}
+h1{font-size:20px;margin:0;font-weight:700;letter-spacing:-.01em}
+.count{color:var(--muted);font-size:14px}
+.count b{color:var(--ink);font-size:17px}
+.spacer{flex:1}
+button.clear{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:6px 12px;border-radius:6px;font:inherit;cursor:pointer}
+button.clear:hover{border-color:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media(max-width:900px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.grid{grid-template-columns:1fr}}
+label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:3px}
+input{width:100%;padding:10px 11px;font:inherit;font-size:16px;color:var(--ink);background:var(--panel);border:1.5px solid var(--line);border-radius:6px}
+input::placeholder{color:var(--muted);opacity:.7}
+input:focus{outline:none;border-color:var(--focus);box-shadow:0 0 0 3px color-mix(in srgb,var(--focus) 25%,transparent)}
+input.active{border-color:var(--accent)}
+.hint{margin:8px 0 0;font-size:12.5px;color:var(--muted)}
+.chips{margin-top:6px;display:flex;flex-wrap:wrap;gap:5px;font-size:12px}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:1px 9px;color:var(--muted)}
+main{padding:14px 18px 40px}
+.results{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:10px}
+.card{position:relative;background:var(--panel);border:1px solid var(--line);border-left:6px solid var(--c);border-radius:6px;padding:10px 12px 10px 12px;display:flex;gap:12px;align-items:center;cursor:pointer;text-align:left;font:inherit;color:inherit;width:100%}
+.card:hover{border-color:var(--c)}
+.card:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.id{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--c);min-width:58px;letter-spacing:-.02em}
+.name{font-size:16px;font-weight:600;line-height:1.25}
+.cat{font-size:12.5px;color:var(--muted);margin-top:2px}
+.cat span{display:inline-block;background:color-mix(in srgb,var(--c) 14%,transparent);color:var(--ink);padding:0 7px;border-radius:4px;font-weight:600}
+mark{background:var(--mark);color:var(--markink);border-radius:2px;padding:0 1px}
+.copied{position:absolute;right:8px;top:6px;font-size:11.5px;color:var(--accent);font-weight:700}
+.empty{padding:40px 10px;text-align:center;color:var(--muted)}
+.empty b{display:block;color:var(--ink);font-size:17px;margin-bottom:4px}
+.badge{position:absolute;right:8px;bottom:6px;font-size:11px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <h1>Case Nature Finder</h1>
+    <div class="count"><b id="n">0</b> of <span id="tot">0</span> case natures</div>
+    <div class="spacer"></div>
+    <button class="clear" id="clear" type="button">Clear all</button>
+  </div>
+  <div class="grid">
+    <div><label for="o1">Option 1</label><input id="o1" autocomplete="off" placeholder="e.g. bike motorcycle cycle"></div>
+    <div><label for="o2">Option 2</label><input id="o2" autocomplete="off" placeholder="e.g. theft chori"></div>
+    <div><label for="o3">Option 3</label><input id="o3" autocomplete="off" placeholder="e.g. found"></div>
+    <div><label for="o4">Option 4</label><input id="o4" autocomplete="off" placeholder="e.g. any other word"></div>
+  </div>
+  <p class="hint">Words inside one option work as "or" (bike or motorcycle). Every filled option must match, so each extra option narrows the list. Spelling mistakes and similar words are understood. Urdu / Roman Urdu words also work (chori, deewar, jua ...). Click a card to copy its name.</p>
+  <div class="chips" id="chips"></div>
+</header>
+<main><div class="results" id="res"></div></main>
+
+<script>
+const DATA = [["Theft", 442, "Pick Pocketing"], ["Theft", 443, "Mobile Theft"], ["Theft", 444, "Purse / Wallet / Luggage Theft"], ["Theft", 445, "Weapon Theft"], ["Theft", 446, "Cattle theft"], ["Theft", 447, "Cycle Theft"], ["Theft", 448, "Transformer/ Motor Theft"], ["Theft", 449, "Any Other Theft"], ["Vehicle Theft", 450, "Motorcycle Theft"], ["Vehicle Theft", 451, "Car Theft"], ["Vehicle Theft", 452, "Other Vehicles Theft"], ["Burglary", 453, "House Burglary"], ["Burglary", 454, "Shop Burglary"], ["Burglary", 455, "Bank Burglary"], ["Burglary", 456, "Other Burglary"], ["Robbery/Snatching", 457, "Robbery with Murder"], ["Robbery/Snatching", 458, "Highway/Road/Street Robbery"], ["Robbery/Snatching", 459, "Snatching/Jhapatta"], ["Robbery/Snatching", 460, "Shop Robbery"], ["Robbery/Snatching", 461, "House Robbery"], ["Robbery/Snatching", 462, "Patrol Pump Robbery"], ["Robbery/Snatching", 463, "Jewellery Shop Robbery"], ["Robbery/Snatching", 464, "Bank/Money Exchange/ ATM Robbery"], ["Robbery/Snatching", 465, "Cattle Robbery"], ["Robbery/Snatching", 466, "Any Other Robbery"], ["Vehicle Snatching", 467, "Motorcycle Snatching"], ["Vehicle Snatching", 468, "Car Snatching"], ["Vehicle Snatching", 469, "Other Vehicles Snatching"], ["Dacoity", 470, "Dacoity with Murder"], ["Dacoity", 471, "Bank/Money Exchange/ ATM Dacoity"], ["Dacoity", 472, "House Dacoity"], ["Dacoity", 473, "Shop Dacoity"], ["Dacoity", 474, "Jewellery Shop Dacoity"], ["Dacoity", 475, "Highway/Road/Street Dacoity"], ["Dacoity", 476, "Patrol Pump Dacoity"], ["Dacoity", 477, "Cattle Dacoity"], ["Dacoity", 478, "Any Other Dacoity"], ["Murder", 479, "Murder"], ["Murder", 480, "Attempt to Murder"], ["Assault / Hurt", 481, "Hurt / Injuries"], ["Assault / Hurt", 482, "Acid Throwing"], ["Assault / Hurt", 483, "Domestic Violence"], ["Assault / Hurt", 484, "Assault on Govt. Officials"], ["Assault / Hurt", 485, "Street Fight"], ["Assault / Hurt", 486, "Physical Threats / Harrasment"], ["Assault / Hurt", 487, "Criminal Intimidation (Threat with Weapon)"], ["Assault / Hurt", 488, "Other Assault"], ["Sexual Assault", 489, "Child Abuse / Molestation"], ["Sexual Assault", 490, "Rape"], ["Sexual Assault", 491, "Sexual Assault/ Harrasment To Women"], ["Sexual Assault", 492, "Prostitution/ Brothel House"], ["Kiddnapping / Abduction", 493, "Kidnapping for Ransom"], ["Kiddnapping / Abduction", 494, "Female Kidnapping/ Abduction"], ["Kiddnapping / Abduction", 495, "Child Kidnapping"], ["Kiddnapping / Abduction", 496, "Male Kidnapping/ Abduction"], ["Kiddnapping / Abduction", 497, "Attempt to Kidnap / Abduct"], ["Religious Offences", 498, "Defiling of Holy Book"], ["Religious Offences", 499, "Derogation of Holy Persons"], ["Religious Offences", 500, "Hate Speech"], ["Religious Offences", 501, "Distribution/ Display of hateful sectarian material"], ["Religious Offences", 502, "Any Other Religious Issue"], ["Fraud / Cheating", 503, "Misappropriation"], ["Fraud / Cheating", 504, "Criminal Breach of Trust"], ["Fraud / Cheating", 505, "Criminal Breach of Trust by Public Servant"], ["Fraud / Cheating", 506, "ATM / Credit Card Fraud"], ["Fraud / Cheating", 507, "Cheque Bounce/Dishonoured"], ["Fraud / Cheating", 508, "Any other type of Fraud / Cheeting"], ["Terrorist Act", 509, "Suicidal Attack/ Bomb Blast/ Terrorist Attack"], ["Terrorist Act", 510, "Firing on Police"], ["Other Crimes", 511, "Attempt to Suicide"], ["Other Crimes", 512, "Illegal detention of a person"], ["Other Crimes", 513, "House/ Work Place Tresspassing"], ["Other Crimes", 514, "Aerial Firing"], ["Other Crimes", 515, "Attempt to Illegal Possession of Land/ Premises"], ["Prohibition", 516, "Drinking"], ["Prohibition", 517, "Possession or Selling of Drinks"], ["Prohibition", 518, "Manufacturing of Drinks"], ["Prohibition", 519, "Drunk Behaviour/Fighting"], ["DRUGS / Control of Narcotics and Substance Act", 520, "Drug Peddling/Selling"], ["DRUGS / Control of Narcotics and Substance Act", 521, "Manufacturing of Drugs"], ["DRUGS / Control of Narcotics and Substance Act", 522, "Possession of Drugs"], ["DRUGS / Control of Narcotics and Substance Act", 523, "Trafficking Drugs"], ["DRUGS / Control of Narcotics and Substance Act", 524, "Any Other Drugs Related Issue Like Sheesha, etc"], ["Arms Ordinance", 525, "Possession of Arms"], ["Arms Ordinance", 526, "Displaying of Arms"], ["Other Laws", 527, "Kite Selling or Flying"], ["Other Laws", 528, "Loudspeaker/ Loud Music"], ["Other Laws", 529, "Child Labor"], ["Other Laws", 530, "Beggars/ Hawkers"], ["Other Laws", 531, "Gambling"], ["Other Laws", 532, "Threat / Indecent Talk on Telephone"], ["Other Laws", 533, "Tenants/ Rental/ Money Dealing Issues"], ["Other Laws", 534, "Ehtram-e-Ramazan Ordinance 1981"], ["Other Laws", 535, "Electricity/ Sui Gas Theft"], ["Other Laws", 536, "Wall Chalking"], ["Other Laws", 537, "Smoking at Public Places/ Public Transport"], ["Other Laws", 538, "Obscenity"], ["Other Laws", 539, "Violation of Section 144"], ["Other Laws", 540, "Pillion Riding"], ["Other Laws", 541, "Fireworks"], ["Other Laws", 542, "Any Other Local & Special Laws"], ["Critical Incident Involving Casualities", 543, "Petrol Pump / Oil Tanker/ Cylinder related Incident"], ["Critical Incident Involving Casualities", 544, "Train Accident"], ["Critical Incident Involving Casualities", 545, "Collapse of Building/House"], ["Critical Incident Involving Casualities", 546, "Fire Erruption"], ["Critical Incident Involving Casualities", 547, "Any other Critical Incident"], ["Public Order", 548, "Unlawful Assembly/Protest/Demonstartion"], ["Public Order", 549, "Riot/Mob"], ["Public Order", 550, "Road Block"], ["Public Order", 551, "Other Disputes & Public Nuisances"], ["Complaints/ Information", 552, "Suspicious Person"], ["Complaints/ Information", 553, "Suspicious Vehicle"], ["Complaints/ Information", 554, "Neighbourhood Disputes"], ["Complaints/ Information", 555, "Dead Body Found"], ["Complaints/ Information", 556, "Suicide"], ["Complaints/ Information", 557, "Fire/Arson"], ["Complaints/ Information", 558, "Telephonic Threat"], ["Complaints/ Information", 559, "Any Security related matter"], ["Complaints/ Information", 560, "Other Informations"], ["Emergency Alarm", 561, "Bank/Shop/House Alarm"], ["Fake Calls (For DCC Only)", 562, "Irelevant calls / Hoax Calls"], ["Traffic Accidents", 563, "Fatal Accidents"], ["Traffic Accidents", 564, "Non - Fatal Accidents"], ["Traffic Violations", 565, "Drunk driving"], ["Traffic Violations", 566, "Traffic Obstruction"], ["Traffic Violations", 567, "One Way Violation"], ["Traffic Violations", 568, "Enchrochement"], ["Traffic Violations", 569, "One Wheeling"], ["Traffic Violations", 570, "Rash Driving/ Racing"], ["Traffic Violations", 571, "Over Loading"], ["Traffic Violations", 572, "Over Charging"], ["Traffic Violations", 573, "Wrong/Illegal Parking"], ["Traffic Violations", 574, "E-Challan Defaulter"], ["Traffic Violations", 575, "Non-Standard Number Plate"], ["Traffic Violations", 576, "Fake / Tampered Number Plate"], ["Traffic Violations", 577, "Broken Number Plate"], ["Traffic Violations", 578, "Heavy Vehicles on Prohibited Road"], ["Traffic Violations", 579, "Without Number Plate Vehicle"], ["Traffic Violations", 580, "Any other Traffic Offence"], ["Traffic Complaints", 581, "Juvinile Drivers"], ["Traffic Complaints", 582, "Traffic Blocked"], ["Traffic Complaints", 583, "Traffic Load"], ["Traffic Complaints", 584, "Signal Out of Order"], ["Traffic Complaints", 585, "Lifter Required"], ["Traffic Complaints", 586, "Mobile Workshop Required"], ["Traffic Complaints", 587, "Misbehave by Traffic Police"], ["Traffic Complaints", 588, "Push Carts"], ["Traffic Complaints", 589, "Construction on Road or Any Civic Issue"], ["Traffic Complaints", 590, "Scuffle with Traffic Warden"], ["Traffic Complaints", 591, "Traffic Warden Not on Duty"], ["Traffic Complaints", 592, "Other Traffic Help"], ["Lost", 593, "Document Lost"], ["Lost", 594, "Child Lost/ Missing"], ["Lost", 595, "Missing Person reported"], ["Lost", 596, "Mobile Lost"], ["Lost", 597, "Purse / Wallet / Luggage Lost"], ["Lost", 598, "Weapon Lost"], ["Lost", 599, "Animal/ Pet Lost"], ["Lost", 600, "Any Other Thing Lost"], ["Found", 601, "Document Found"], ["Found", 602, "Child Found"], ["Found", 603, "Missing Person Found"], ["Found", 604, "Mobile Found"], ["Found", 605, "Purse / Wallet / Luggage Found"], ["Found", 606, "Weapon Found"], ["Found", 607, "Animal/ Pet Found"], ["Found", 608, "Bike Found"], ["Found", 609, "Car Found"], ["Found", 610, "Other Vehicle Found"], ["Found", 611, "Any Other Thing Found"], ["1122", 612, "Ambulance required"], ["1122", 613, "Fire Brigade required"], ["Consultation/Information", 614, "Advised to report to other department / Agency"], ["Consultation/Information", 615, "Complaint against PSCA"], ["Consultation/Information", 616, "Complaint against E-Challan"], ["Consultation/Information", 617, "Other Help"], ["Religious Offences", 618, "Attack/Damage of Religious Places (Church/Mosque/Gurdwara/Mundar/Imambargah/Mazzar)"], ["Election 2024", 619, "Election 2024"], ["Consultation/Information", 620, "Legal Advice"], ["Transport", 621, "Transport"], ["Cyber Crime", 626, "Online / Digital Abuse (with Child)"], ["Cyber Crime", 631, "Online / Digital Abuse (with Women)"], ["Cyber Crime", 636, "Other Cyber Crime"], ["Traffic Accidents", 637, "Serious Accident (Injury/Fracture)"], ["Sexual Assault", 641, "Gang Rape"]];
+
+/* Words that mean the same thing (English, Roman Urdu, common variants). Add your own groups here. */
+const SYN = [
+ ["bike","bikes","motorcycle","motorbike","scooter","cycle","bicycle","cycles","bikers"],
+ ["car","cars","gari","gaari","gadi","vehicle","vehicles","auto","jeep","van","rickshaw","truck","bus"],
+ ["theft","steal","stealing","stolen","thief","chori","chorri","choree","chauri","thieves","chor","churana","churaya"],
+ ["snatch","snatching","snatched","jhapatta","jhapta","jhapat"],
+ ["robbery","rob","robbed","loot","lut","lootmar","robber","lutera","lootera","luteray","lutmar","lootmaar","chori","chorri","choree","chor"],
+ ["dacoity","dacoit","daku","dakoo","dakaiti","dakaity","daketi","daka","dacoities"],
+ ["murder","kill","killing","killed","qatl","qatal","homicide","maar","death"],
+ ["hurt","injury","injuries","injured","zakhmi","zakhm","wound"],
+ ["kidnap","kidnapping","kidnapped","abduct","abduction","abducted","agwa","ightwa","ighwa"],
+ ["rape","raped","zina","zinah","zanabilJabr","molest","molestation","gang"],
+ ["mobile","phone","cell","cellphone","smartphone","handset"],
+ ["wallet","purse","luggage","bag","pocket","pickpocket","pickpocketing","baggage"],
+ ["fraud","cheat","cheating","cheeting","dhoka","dhokha","scam","forgery","fake"],
+ ["drug","drugs","narcotic","narcotics","charas","heroin","ice","nasha","sheesha","shisha","hashish","peddling"],
+ ["alcohol","drink","drinks","drinking","wine","liquor","sharab","drunk","drunken","prohibition"],
+ ["weapon","weapons","arms","gun","pistol","firearm","firearms","asla","aslah","revolver","rifle"],
+ ["accident","accidents","crash","collision","hadsa","hadsah"],
+ ["lost","lose","missing","gum","gumshuda","gaib"],
+ ["found","recovered","recover","mil","mila"],
+ ["fire","arson","blaze","aag","burn","burning","erruption","eruption"],
+ ["noise","loudspeaker","speaker","music","loud"],
+ ["kite","kites","patang","basant","string"],
+ ["beggar","beggars","begging","hawker","hawkers","bhikari"],
+ ["ambulance","rescue","medical","1122","paramedic"],
+ ["dead","body","corpse","laash","lash","deadbody"],
+ ["suicide","suicidal","selfharm"],
+ ["threat","threats","threaten","threatening","intimidation","dhamki","blackmail"],
+ ["harassment","harrasment","harass","harassed","eve","teasing"],
+ ["parking","park","parked"],
+ ["plate","numberplate","number","plates"],
+ ["signal","signals","light","lights"],
+ ["gambling","gamble","gambler","jua","juwa","jooa","joa","jawa","betting","bet","satta","juari"],
+ ["child","children","kid","kids","minor","baby","bacha","bache","juvenile","juvinile"],
+ ["woman","women","female","girl","lady","aurat","larki"],
+ ["man","male","boy","mard","larka"],
+ ["protest","demonstration","demonstartion","assembly","dharna","rally","march","unlawful"],
+ ["riot","mob","clash","fasad"],
+ ["hoax","irelevant","irrelevant","prank","fake","blank"],
+ ["electricity","bijli","power","gas","sui","meter"],
+ ["house","home","ghar","residence"],
+ ["shop","dukan","store","market"],
+ ["bank","atm","exchange","money"],
+ ["petrol","pump","fuel","patrol","tanker","cylinder","oil"],
+ ["cattle","animal","animals","buffalo","cow","goat","janwar","pet","pets","bhains","bakri"],
+ ["cyber","online","digital","internet","hacking","hacked","social","facebook","whatsapp"],
+ ["tresspass","trespass","trespassing","tresspassing","entry","enter"],
+ ["jewellery","jewelry","gold","sona","zewar"],
+ ["religious","holy","quran","mosque","masjid","church","temple","mazar","mazzar","imambargah","blasphemy","sectarian","hate"],
+ ["terror","terrorist","terrorism","bomb","blast","attack","firing"],
+ ["traffic","challan","warden","road"],
+ ["rash","racing","speeding","overspeed"],
+ ["one","wheeling","wheelie"],
+ ["land","property","plot","qabza","possession","premises","encroachment","enchrochement"],
+ ["rent","tenant","tenants","rental","kiraya","kirayadar"],
+ ["cheque","check","bounce","dishonoured","dishonored"],
+ ["document","documents","cnic","card","license","licence","passport"],
+ ["legal","advice","lawyer","court","law"],
+ ["election","vote","voting","poll"],
+ ["transport","transportation","bus","wagon"],
+ ["domestic","family","wife","husband","gharelu"],
+ ["acid","tezab"],
+ ["school","education","student"],
+ ["brothel","prostitution","prostitute","kothi"],
+ ["smoking","smoke","cigarette","tobacco"],
+ ["obscene","obscenity","vulgar","indecent"],
+ ["wall","walls","deewar","deewaar","diwar","diwaar","dewar","chalking","graffiti","poster","likhai"],
+ ["fireworks","firework","crackers","atishbazi"],
+ ["pillion","riding","pillionriding"],
+ ["burglary", "burglar", "housebreaking", "sendh", "sendhmari", "naqab", "naqabzani", "chori", "chorri", "chor", "dakhli"],
+ ["murder", "khoon", "qatil", "qaatil", "qatleaam", "qatleamd", "maut", "halak", "halaak", "maarna", "maardalna", "jaan"],
+ ["fight", "fighting", "larai", "ladai", "jhagra", "jhagda", "marpeet", "maarpeet", "scuffle", "tashaddud", "tashadud", "violence", "hamla", "hamlah"],
+ ["kidnap", "aghwa", "aghwah", "agwah", "apharan", "uthana", "uthaliya"],
+ ["ransom", "tawan", "fidya", "fidiya", "bhatta", "bhata"],
+ ["rape", "zinabiljabr", "zinabaljabr", "ismatdari", "ismat", "bahurmati", "zulm"],
+ ["harassment", "harrasment", "harass", "hirasa", "hiraas", "hiraasan", "harasan", "chherchar", "chhairchhar", "cheerchaar", "cherchar"],
+ ["mobile", "mobail", "mobaile", "moblie", "fone", "phone"],
+ ["pickpocket", "pickpocketing", "pocketing", "pick", "jebkatra", "jaibkatra", "jebtarash", "jeb", "jaib", "batua", "batwa", "pursa"],
+ ["fraud", "dhoka", "dhokebazi", "dokha", "fareb", "jaal", "jaalsazi", "jalsazi", "jaali", "jali"],
+ ["trust", "breach", "misappropriation", "khayanat", "khiyanat", "ghabban", "ghaban", "amanat"],
+ ["drug", "drugs", "nashe", "nashaa", "afeem", "bhang", "ganja", "gaanja", "cocaine", "meth", "crystal", "charsi", "sutta"],
+ ["trafficking", "smuggling", "smuggler", "taskari", "taskar"],
+ ["alcohol", "drink", "drinks", "drinking", "liquor", "sharaab", "sharabi", "daru", "peena", "sharabnoshi", "sharabkhana"],
+ ["weapon", "hathiyar", "hathyar", "bandook", "banduq", "bandoq", "kalashnikov", "tamancha", "asalah", "aslaha", "asla", "aslah"],
+ ["firing", "goli", "goliyan", "golibari", "hawai", "hawayi", "aerial", "fyring"],
+ ["accident", "accidint", "hadsa", "hadsah", "hadisa", "hadsaat", "takkar", "tasadum"],
+ ["lost", "gum", "gumshuda", "gumshudagi", "kho", "khoya", "khoyi", "khogaya", "gawacha", "gawachi", "lapata", "lapta", "ghayab", "gaib"],
+ ["found", "mil", "mila", "mili", "milgaya", "milgayi", "baraamad", "baramad", "paya", "payi"],
+ ["fire", "aag", "agg", "jalna", "jala", "jalaya", "aatishzadgi", "atishzadgi", "aatishzani"],
+ ["noise", "shor", "shoor", "awaz", "aawaz", "dj", "speeker", "spiker", "loudspeaker"],
+ ["kite", "patang", "patangbazi", "patangbaazi", "dor", "dore", "manjha", "manja", "basant"],
+ ["beggar", "bheek", "bhik", "bhikari", "bhikhari", "mangta", "mangtay", "faqeer", "fakir"],
+ ["hawker", "rehri", "rehriwala", "thela", "thelay", "pherifala", "pushcart", "cart", "carts", "rehrian"],
+ ["dead", "body", "murda", "murdah", "mayyat", "mayat", "jasad", "laash", "lash"],
+ ["suicide", "khudkushi", "khudkashi", "khudkushee", "khudkushi"],
+ ["threat", "dhamki", "dhamkiyan", "dhamkana", "blackmail", "blackmailing", "blackmale"],
+ ["child", "nabalig", "nabaligh", "bachcha", "bachchay", "bachay", "bachon", "bachi"],
+ ["woman", "women", "female", "khatoon", "khawateen", "aurten", "ladki", "larkiyan", "lari"],
+ ["man", "male", "admi", "aadmi", "launda", "mardana"],
+ ["protest", "jaloos", "jalsa", "ihtijaj", "ehtijaj", "ahtijaj", "muzahira", "hartal"],
+ ["riot", "hungama", "hangama", "balwa", "ashob", "fasad"],
+ ["electricity", "bijli", "bijlee", "kunda", "kundachori", "meter"],
+ ["house", "makan", "makaan", "ghar"],
+ ["shop", "dukan", "dukaan", "dokan", "dukkan", "bazar", "bazaar"],
+ ["bank", "paisa", "paise", "raqam", "cash", "naqdi", "rupay", "rupaye"],
+ ["petrol", "patrol", "tel", "tail", "silinder", "cylinder"],
+ ["cattle", "mawaishi", "maweshi", "bhens", "bhains", "gae", "gai", "gaye", "bakra", "bakri", "bail", "janwar"],
+ ["cyber", "saibar", "insta", "instagram", "tiktok", "hack", "hacking", "internet"],
+ ["trespass", "trespassing", "tresspass", "tresspassing", "ghusna", "ghus", "dakhal", "dakhli", "daakhla"],
+ ["jewellery", "jewelery", "jeweler", "jeweller", "zaiwar", "zewar", "sunar", "sona"],
+ ["religious", "toheen", "tauheen", "mazhab", "mazhabi", "firqa", "firqawarana", "fatwa", "mandir", "girja", "gurdwara", "dargah", "masjid", "mazar"],
+ ["traffic", "chalan", "challan", "sarak", "warden"],
+ ["rash", "tezraftari", "tezrafari", "tez", "raftar", "speed", "speeding"],
+ ["wheeling", "wheelie", "wheelingbazi", "onewheeling"],
+ ["land", "zameen", "zamin", "jaidad", "qabza", "qabzamafia", "tajawuz", "tajawuzat", "najaiz", "atikraman"],
+ ["rent", "rental", "tenant", "tenants", "kiraya", "kirayedar", "kirayadar", "kirya", "kiray"],
+ ["cheque", "chaque", "chek", "bounce", "dishonour", "dishonor"],
+ ["document", "shanakhti", "kagzat", "kaghzat", "dastaveez", "dastawez", "registry", "cnic"],
+ ["legal", "qanooni", "qanuni", "qanoon", "kanoon", "mashwara", "wakeel", "vakeel", "adalat"],
+ ["election", "intikhab", "intekhab", "chunao", "vote", "voting"],
+ ["domestic", "gharelu", "ghareloo", "biwi", "shohar", "khawand", "sasural"],
+ ["acid", "tezab", "tezaab"],
+ ["obscene", "obscenity", "fahash", "fahashi", "behayai", "behaya", "ashleel"],
+ ["prostitution", "brothel", "kothakhana", "kothakhanah", "budkari", "badkari"],
+ ["smoking", "smoke", "sigrate", "cigrate", "sigret", "hukka", "hookah", "shisha", "sheesha", "tambaku", "tobacco", "cigarette"],
+ ["fireworks", "firework", "atishbazi", "patakhe", "patakha", "patakay", "crackers"],
+ ["pillion", "double", "dabal", "dubbal", "dablsawari", "dablesawari", "sawari", "savari"],
+ ["ambulance", "ambulans", "amblance", "mareez", "hospital", "emergency", "1122"],
+ ["hoax", "jhoota", "jhooti", "jhootikaal", "fazool", "faltu", "mazaq", "prank"],
+ ["detention", "qaid", "hirasat", "yarghmal", "yargmal", "ghairqanooni"],
+ ["collapse", "imarat", "imaraat", "girna", "gira", "chhat", "chat", "malba", "building"],
+ ["train", "rail", "railway", "railgari", "railgadi", "station"],
+ ["terror", "terrorist", "bomb", "blast", "attack", "dehshatgardi", "dahshatgardi", "dehshat", "dhamaka", "dhamaaka", "khudkush", "hamla", "hamlah"],
+ ["assault", "hamla", "hamlah", "maarna", "maar", "tashaddud"],
+ ["overloading", "overload", "load", "bojh", "bhari"],
+ ["overcharging", "overcharge", "charging", "mehnga", "mehngai", "ziada", "zyada"],
+ ["plate", "nambar", "nambarplate", "naumberplate", "numberplate"],
+ ["juvenile", "juvinile", "nabalig", "nabaligh", "driver", "drivers", "driving", "drive"],
+ ["lifter", "crane", "kranay", "krane", "tow", "towing"],
+ ["workshop", "mechanic", "mistri", "mistry", "puncture", "puncher"],
+ ["signal", "batti", "bati", "ishara", "isharah"],
+ ["misbehave", "misbehaviour", "badtameezi", "badtamizi", "badsaluki", "badsulooki", "rude"],
+ ["neighbour", "neighbor", "neighbourhood", "neighborhood", "padosi", "parosi", "hamsaya", "hamsay", "tanaza", "dispute", "disputes"],
+ ["suspicious", "suspect", "mashkook", "mushkook", "mushtabah", "mushtabeh", "shak", "shakk", "shakki", "shubah"],
+ ["complaint", "complaints", "shikayat", "shikayaat", "darkhwast", "darkhast", "ittila", "ittelaa", "information", "maloomat"],
+ ["help", "madad", "madadgar", "imdad", "assistance", "advice"],
+ ["hurt", "chot", "chotein", "choot", "zakhmi", "zakhm"],
+ ["car", "gaadi", "gaari", "gaarri", "gari", "gadi"],
+ ["parking", "paarking", "khari", "khara"],
+ ["vehicle", "gaarian", "gariyan", "gadiyan", "savaari"],
+ ["wall", "deewar", "deewaar", "diwar", "diwaar", "dewar", "deewarein", "deewaron"],
+ ["gambling", "jua", "juwa", "jooa", "joa", "juari", "satta", "sattabazi"],
+ ["theft", "chori", "chorri", "choree", "chauri", "chor", "churana", "churaya", "chorian", "choriyan", "chorbazari"]
+];
+
+const PALETTE = ['#1F6FB0','#C0392B','#2E8B4A','#8E5BC0','#D9730D','#0B8FA3','#8C5A2B','#4A5CC0','#C03C85','#6B9A00'];
+const catOrder = []; DATA.forEach(d=>{ if(!catOrder.includes(d[0])) catOrder.push(d[0]); });
+const catColor = c => PALETTE[catOrder.indexOf(c) % PALETTE.length];
+
+const norm = s => s.toLowerCase().replace(/[^a-z0-9]/g,'');
+const tokenize = s => (s.toLowerCase().match(/[a-z0-9]+/g) || []);
+const stem = w => w.length>4 ? w.replace(/(ing|ed|es|s)$/,'') : w.replace(/s$/,'');
+
+/* Damerau-Levenshtein (counts a swapped pair of letters as one mistake) */
+function dist(a,b){
+  const m=a.length,n=b.length; if(!m) return n; if(!n) return m;
+  const d=[]; for(let i=0;i<=m;i++){d[i]=[i]; } for(let j=0;j<=n;j++) d[0][j]=j;
+  for(let i=1;i<=m;i++) for(let j=1;j<=n;j++){
+    const c=a[i-1]===b[j-1]?0:1;
+    d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+c);
+    if(i>1&&j>1&&a[i-1]===b[j-2]&&a[i-2]===b[j-1]) d[i][j]=Math.min(d[i][j],d[i-2][j-2]+1);
+  }
+  return d[m][n];
+}
+const allowed = len => len<=3 ? 0 : len<=6 ? 1 : 2;
+
+/* Does query word q match token t? returns true/false */
+function wordMatch(q,t,fuzzy){
+  if(q===t) return true;
+  const sq=stem(q), st=stem(t);
+  if(sq===st) return true;
+  if(!fuzzy) return false;                                   // synonym words must match a whole word
+  if(t.startsWith(q)) return true;                           // typed letters match the start of any word, from 1 letter
+  if(fuzzy && q.length>=3 && t.includes(q)) return true;     // "cycle" -> motorcycle
+  if(sq.length>=4 && st.startsWith(sq)) return true;
+  if(st.length>=4 && sq.startsWith(st) && sq.length-st.length<=3) return true;
+  if(!fuzzy || q[0]!==t[0]) return false;                 // typo tolerance only for what you typed
+  const lim = allowed(Math.min(q.length,t.length));
+  return lim>0 && dist(q,t)<=lim;
+}
+
+/* Build lookup: word -> group index */
+const groupOf = new Map();
+SYN.forEach((g,i)=>g.forEach(w=>{ const k=norm(w); if(!groupOf.has(k)) groupOf.set(k,[]); groupOf.get(k).push(i); }));
+const synWords = [...groupOf.keys()];
+
+/* Expand typed word into {word, weight} list: typed word (3), similar words (2) */
+function expand(q){
+  const out = new Map(); out.set(q,3);
+  let groups = new Set(groupOf.get(q)||[]);
+  if(!groups.size && q.length>=4){                      // typo in a known synonym word
+    for(const w of synWords){ if(Math.abs(w.length-q.length)<=2 && dist(q,w)<=allowed(Math.min(q.length,w.length))) (groupOf.get(w)).forEach(g=>groups.add(g)); }
+  }
+  groups.forEach(g=>SYN[g].forEach(w=>{ const k=norm(w); if(!out.has(k)) out.set(k,2); }));
+  return out;
+}
+
+const items = DATA.map(([cat,id,name])=>({cat,id,name,toks:[...new Set([...tokenize(name),...tokenize(cat)])]}));
+const inputs = [1,2,3,4].map(i=>document.getElementById('o'+i));
+const res = document.getElementById('res');
+
+function parse(v){ return v.split(/[\s,;+]+/).map(norm).filter(Boolean); }
+
+function run(){
+  const groups = inputs.map(i=>parse(i.value)).map(ws=>ws.map(expand)).filter(g=>g.length);
+  inputs.forEach(i=>i.classList.toggle('active', parse(i.value).length>0));
+  let list = items.map(it=>({it,score:0,hit:new Set()}));
+  if(groups.length){
+    list = list.filter(r=>{
+      for(const opt of groups){
+        let best=0;
+        for(const terms of opt){                         // each typed word of this option (OR)
+          for(const [w,wt] of terms){
+            for(const t of r.it.toks){
+              if(wordMatch(w,t,wt===3)){ best=Math.max(best,wt); r.hit.add(t); }
+            }
+          }
+        }
+        if(!best) return false;                          // this option fails -> hidden (AND between options)
+        r.score+=best;
+      }
+      return true;
+    });
+    list.sort((a,b)=>b.score-a.score || a.it.id-b.it.id);
+  }
+  render(list, groups.length>0);
+}
+
+const esc = s => s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function hl(text,hit){
+  return text.split(/([A-Za-z0-9]+)/).map(p=>{
+    const k=p.toLowerCase();
+    return hit.has(k) ? '<mark>'+esc(p)+'</mark>' : esc(p);
+  }).join('');
+}
+
+function render(list,filtered){
+  document.getElementById('n').textContent=list.length;
+  if(!list.length){
+    res.innerHTML='<div class="empty" style="grid-column:1/-1"><b>No case nature matches</b>Remove a word from one of the options, or try a simpler word.</div>';
+    return;
+  }
+  res.innerHTML=list.map(r=>`<button type="button" class="card" style="--c:${catColor(r.it.cat)}" data-copy="${esc(r.it.name)}">
+    <div><div class="name">${hl(r.it.name,r.hit)}</div><div class="cat"><span>${hl(r.it.cat,r.hit)}</span></div></div>
+  </button>`).join('');
+}
+
+res.addEventListener('click',e=>{
+  const c=e.target.closest('.card'); if(!c) return;
+  const txt=c.dataset.copy.replace(/&amp;/g,'&');
+  (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).catch(()=>{
+    const t=document.createElement('textarea'); t.value=txt; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove();
+  });
+  const s=document.createElement('span'); s.className='copied'; s.textContent='Copied'; c.appendChild(s); setTimeout(()=>s.remove(),900);
+});
+
+inputs.forEach(i=>i.addEventListener('input',run));
+function clearAll(){ inputs.forEach(i=>i.value=''); run(); inputs[0].focus(); }
+document.getElementById('clear').addEventListener('click',clearAll);
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') clearAll(); });
+document.getElementById('tot').textContent=items.length;
+run(); inputs[0].focus();
+</script>
+</body>
+</html>
